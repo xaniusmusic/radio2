@@ -1,0 +1,42 @@
+# Netlify deployment configuration for the Etherwave DX-9000 radio simulator.
+# Docs: https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  # Same command used locally. vite-plugin-singlefile emits everything as one
+  # self-contained dist/index.html, so the publish directory is all we need.
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # vite 7 requires Node 20.19+ / 22.12+; lock the build image to Node 22 LTS.
+  NODE_VERSION = "22"
+  # Keep installs deterministic and small for a static site.
+  NPM_FLAGS = "--no-audit --no-fund"
+
+# SPA fallback: unknown paths serve the app (defensive — the app has one route).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security + caching headers.
+# NOTE: a strict Content-Security-Policy is intentionally not set. The build is
+# fully inlined by vite-plugin-singlefile, so script-src/style-src would need
+# 'unsafe-inline' anyway, and the receiver streams live audio from arbitrary
+# HTTPS hosts across the public internet — a CSP cannot enumerate them.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Geolocation is used only by the "use my location" button (browser prompt).
+    Permissions-Policy = "geolocation=(self), microphone=(), camera=()"
+    Cross-Origin-Opener-Policy = "same-origin"
+
+# The single inlined HTML bundle must always be revalidated, otherwise users
+# keep stale radio builds after a redeploy.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
